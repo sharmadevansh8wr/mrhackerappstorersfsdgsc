@@ -737,7 +737,6 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        
         .share-modal h3 {
             color: var(--accent1);
             margin-bottom: 1.5rem;
@@ -1180,6 +1179,275 @@
             }
         }
 
+        function shareViaWhatsApp() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaTelegram() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://t.me/share/url?url=${encodeURIComponent(getMediaFireLink())}&text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaInstagram() {
+            copyToClipboard(getShareText());
+            alert('📋 Share text copied to clipboard! You can now paste it in Instagram.');
+            closeShareModal();
+        }
+
+        function shareViaFacebook() {
+            const url = encodeURIComponent(getMediaFireLink());
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaTwitter() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaSMS() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`sms:?body=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function getMediaFireLink() {
+            if (currentAppForSharing && currentAppForSharing.downloadLink) {
+                return currentAppForSharing.downloadLink;
+            }
+            return "https://www.mediafire.com/file/woq5lx6ulrw7kb4/base.apk/file";
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                console.log('Text copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        }
+
+        /***********************
+         *  Auto Login System  *
+         ***********************/
+        function checkAutoLogin() {
+            const savedUser = localStorage.getItem('mrHackerCurrentUser');
+            const rememberMe = localStorage.getItem('mrHackerRememberMe') === 'true';
+            
+            console.log("🔍 Checking auto login...");
+            console.log("Saved user:", savedUser ? "Yes" : "No");
+            console.log("Remember me:", rememberMe);
+            
+            if (savedUser && rememberMe) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    console.log("🔄 Auto login attempt for:", userData.email);
+                    
+                    // Auto fill login form
+                    document.getElementById('loginEmail').value = userData.email || '';
+                    document.getElementById('loginPassword').value = userData.password || '';
+                    
+                    // Show login success and redirect to app store
+                    document.getElementById('loginSuccess').style.display = 'block';
+                    setTimeout(() => {
+                        showAppStore();
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error("❌ Auto login error:", error);
+                    showLogin();
+                }
+            } else {
+                // Check if user is already logged in via Firebase
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    console.log("✅ Firebase user already logged in:", currentUser.email);
+                    showAppStore();
+                } else {
+                    console.log("ℹ️ No auto login data found, showing login screen");
+                    showLogin();
+                }
+            }
+        }
+
+        function saveUserCredentials(email, password, remember) {
+            if (remember) {
+                const userData = {
+                    email: email,
+                    password: password,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('mrHackerCurrentUser', JSON.stringify(userData));
+                localStorage.setItem('mrHackerRememberMe', 'true');
+                console.log("💾 User credentials saved");
+            } else {
+                localStorage.removeItem('mrHackerCurrentUser');
+                localStorage.removeItem('mrHackerRememberMe');
+                console.log("🗑️ User credentials cleared");
+            }
+        }
+
+        function clearUserCredentials() {
+            localStorage.removeItem('mrHackerCurrentUser');
+            localStorage.removeItem('mrHackerRememberMe');
+            console.log("🧹 All user credentials cleared");
+        }
+
+        /***********************
+         *  Firebase Apps Loader *
+         ***********************/try {
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+        }
+
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        /***********************
+         *  DOM refs & state   *
+         ***********************/
+        let allApps = [];
+        let currentAppId = null;
+        let currentAppForSharing = null;
+        let currentScreenshots = [];
+        let currentLightboxIndex = 0;
+
+        /***********************
+         *  Lightbox Feature   *
+         ***********************/
+        function openLightbox(index) {
+            currentLightboxIndex = index;
+            const lightboxImg = document.getElementById('lightboxImg');
+            lightboxImg.src = currentScreenshots[index];
+            document.getElementById('lightboxModal').classList.add('active');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').classList.remove('active');
+        }
+
+        function changeLightboxImage(direction) {
+            currentLightboxIndex += direction;
+            
+            if (currentLightboxIndex < 0) {
+                currentLightboxIndex = currentScreenshots.length - 1;
+            } else if (currentLightboxIndex >= currentScreenshots.length) {
+                currentLightboxIndex = 0;
+            }
+            
+            const lightboxImg = document.getElementById('lightboxImg');
+            lightboxImg.src = currentScreenshots[currentLightboxIndex];
+        }
+
+        // Keyboard navigation for lightbox
+        document.addEventListener('keydown', function(e) {
+            const lightbox = document.getElementById('lightboxModal');
+            if (lightbox.classList.contains('active')) {
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                } else if (e.key === 'ArrowLeft') {
+                    changeLightboxImage(-1);
+                } else if (e.key === 'ArrowRight') {
+                    changeLightboxImage(1);
+                }
+            }
+        });
+
+        // Close lightbox when clicking outside image
+        document.getElementById('lightboxModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLightbox();
+            }
+        });
+
+        /***********************
+         *  Share App Feature  *
+         ***********************/
+        function openShareModal(app = null) {
+            currentAppForSharing = app;
+            
+            // Modal title set karein
+            if (app) {
+                document.getElementById('shareModalTitle').textContent = `Share ${app.name}`;
+            } else {
+                document.getElementById('shareModalTitle').textContent = 'Share App Store';
+            }
+            
+            document.getElementById('shareModal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        function getShareText() {
+            if (currentAppForSharing) {
+                // Agar koi specific app open hai toh uska MediaFire link share karega
+                const mediafireLink = currentAppForSharing.downloadLink || "https://www.mediafire.com/file/woq5lx6ulrw7kb4/base.apk/file";
+                
+                return `🚀 ${currentAppForSharing.name} ${currentAppForSharing.version}\n\n${currentAppForSharing.description}\n\n📲 Download Now: ${mediafireLink}\n\n🔗 Shared via MR.HACKER App Store`;
+            } else {
+                // Agar koi app open nahi hai toh pure app store share karega
+                const appStoreUrl = "https://sharmadevansh8wr.github.io/mr-hacker-app-store/";
+                return `📱 MR.HACKER App Store\n\nDiscover amazing modded apps, premium features, and much more!\n\n✨ Features:\n• Modded Apps\n• Premium Unlocked\n• Free Downloads\n• Regular Updates\n\n🔗 Visit Now: ${appStoreUrl}`;
+            }
+        }
+
+        function shareViaWhatsApp() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaTelegram() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://t.me/share/url?url=${encodeURIComponent(getMediaFireLink())}&text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaInstagram() {
+            copyToClipboard(getShareText());
+            alert('📋 Share text copied to clipboard! You can now paste it in Instagram.');
+            closeShareModal();
+        }
+
+        function shareViaFacebook() {
+            const url = encodeURIComponent(getMediaFireLink());
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaTwitter() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function shareViaSMS() {
+            const text = encodeURIComponent(getShareText());
+            window.open(`sms:?body=${text}`, '_blank');
+            closeShareModal();
+        }
+
+        function getMediaFireLink() {
+            if (currentAppForSharing && currentAppForSharing.downloadLink) {
+                return currentAppForSharing.downloadLink;
+            }
+            return "https://www.mediafire.com/file/woq5lx6ulrw7kb4/base.apk/file";
+        }
+
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
                 console.log('Text copied to clipboard');
@@ -1610,7 +1878,16 @@
                 }
             });
 
-              // Close share modal when clicking outside
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                const dropdownMenu = document.getElementById('dropdownMenu');
+                const menuBtn = document.getElementById('menuBtn');
+                if (!dropdownMenu.contains(e.target) && !menuBtn.contains(e.target)) {
+                    dropdownMenu.classList.add('hidden');
+                }
+            });
+
+            // Close share modal when clicking outside
             document.addEventListener('click', (e) => {
                 const shareModal = document.getElementById('shareModal');
                 if (e.target === shareModal) {
@@ -1675,3 +1952,5 @@
     </script>
 </body>
 </html>
+
+       
